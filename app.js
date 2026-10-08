@@ -1,20 +1,20 @@
 // ---------- Hero scrub.
 // Hover devices: cursor x drives the video (left edge = looking left, right edge = looking right).
-// Touch devices: scrolling through the 200svh hero drives a frame sequence drawn to a canvas. Phones get
-// no <video> at all: iOS applies media policies (no painting before play, blob sources, low-power mode)
-// that left the figure blank, and a canvas has none of them.
+// Touch devices: a finger dragged across the hero drives a frame sequence drawn to a canvas (same mapping,
+// finger x instead of cursor x). Phones get no <video> at all: iOS applies media policies (no painting
+// before play, blob sources, low-power mode) that left the figure blank, and a canvas has none of them.
 const hero = document.querySelector('.hero')
 const isTouch = matchMedia('(hover: none)').matches
-const scrollFraction = () => { const track = hero.offsetHeight - innerHeight; return track > 0 ? Math.min(1, Math.max(0, scrollY / track)) : 0 }
 
 if (isTouch) {
   const FRAMES = 61 // frames/f01.webp … f61.webp, every second frame of the clip
   const canvas = document.getElementById('frames')
   const ctx = canvas.getContext('2d')
   const frames = []
+  let fraction = 0.5 // face the camera until a finger moves
   let current = -1
   const draw = () => {
-    const want = Math.round(scrollFraction() * (FRAMES - 1))
+    const want = Math.round(fraction * (FRAMES - 1))
     // Nearest frame that has finished loading, so the figure appears as soon as anything is ready.
     let i = want
     while (i >= 0 && !frames[i]?.complete) i--
@@ -38,7 +38,10 @@ if (isTouch) {
   }
   let queued = false
   const schedule = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; current = -1; draw() }) } }
-  window.addEventListener('scroll', schedule, { passive: true })
+  // touch-action: pan-y on the hero leaves vertical drags to the page scroll and hands sideways ones to us.
+  const onTouch = (e) => { fraction = Math.min(1, Math.max(0, e.touches[0].clientX / innerWidth)); schedule() }
+  hero.addEventListener('touchstart', onTouch, { passive: true })
+  hero.addEventListener('touchmove', onTouch, { passive: true })
   window.addEventListener('resize', schedule)
 } else {
   const video = document.getElementById('hero')

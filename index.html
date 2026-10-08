@@ -21,13 +21,14 @@
     video, canvas { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
     canvas { display: none; background: url(poster.jpg) center / cover no-repeat; }
     @media (hover: none) { video { display: none; } canvas { display: block; } }
-    .hero { position: relative; z-index: 1; height: 100vh; height: 100svh; }
-    @media (hover: none) { .hero { height: 200vh; height: 200svh; } } /* scroll track: scrolling through it turns her head */
+    .hero { position: relative; z-index: 1; height: 100vh; height: 100svh; touch-action: pan-y; }
+    .touch-only { display: none; }
+    @media (hover: none) { .touch-only { display: inline; } }
     .stage { position: sticky; top: 0; height: 100vh; height: 100svh; }
     .stage header { position: absolute; top: 0; left: 0; padding: max(16px, env(safe-area-inset-top)) 20px; }
     .stage header a { color: var(--ink); text-decoration: none; font-weight: 500; font-size: 28px; letter-spacing: 0.08em; text-shadow: 0 1px 4px rgba(255,255,255,0.5); }
     .hint { position: absolute; left: 0; right: 0; bottom: calc(22px + env(safe-area-inset-bottom)); margin: 0; text-align: center; font-size: 14px; line-height: 1.5; color: #2a2624; }
-    .hint span { display: inline-block; animation: bob 1.6s ease-in-out infinite; }
+    .hint .arrow { display: inline-block; animation: bob 1.6s ease-in-out infinite; }
     @keyframes bob { 50% { transform: translateY(5px); } }
     @media (min-width: 640px) { .stage header { padding: 24px 32px; } .stage header a { font-size: 36px; } }
 
@@ -77,7 +78,7 @@
     .review .at { font-size: 16px; line-height: 1.45; white-space: pre-wrap; }
     .review .at.skip { color: #a39a92; font-style: italic; }
 
-    @media (prefers-reduced-motion: reduce) { .card.enter, .hint span { animation: none; } html { scroll-behavior: auto; } }
+    @media (prefers-reduced-motion: reduce) { .card.enter, .hint .arrow { animation: none; } html { scroll-behavior: auto; } }
   </style>
 </head>
 <body>
@@ -86,7 +87,7 @@
   <section class="hero">
     <div class="stage">
       <header><a href="#">NAHAR</a></header>
-      <p class="hint">Fifty questions, one at a time.<br>Scroll when you’re ready <span>↓</span></p>
+      <p class="hint"><span class="touch-only">Swipe left or right, she’ll follow.<br></span>Fifty questions, one at a time.<br>Scroll when you’re ready <span class="arrow">↓</span></p>
     </div>
   </section>
   <main id="quiz">
