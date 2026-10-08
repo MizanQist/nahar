@@ -8,6 +8,9 @@ const isTouch = matchMedia('(hover: none)').matches
 
 if (isTouch) {
   const FRAMES = 61 // frames/f01.webp … f61.webp, every second frame of the clip
+  const PORTRAIT_VIEW = 0.62 // on a portrait screen this fraction of the frame width fills the screen: the figure plus space either side
+  const PORTRAIT_CENTRE = 0.45 // vertical centre of the figure as a fraction of the screen height
+  const GREY = '#b7b3b2' // the page background; the frame's own backdrop is the same grey
   const canvas = document.getElementById('frames')
   const ctx = canvas.getContext('2d')
   const frames = []
@@ -25,16 +28,26 @@ if (isTouch) {
     const dpr = Math.min(2, devicePixelRatio || 1)
     const w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr)
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h }
-    const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight)
+    const portrait = h > w
+    const scale = portrait ? w / (img.naturalWidth * PORTRAIT_VIEW) : Math.max(w / img.naturalWidth, h / img.naturalHeight)
     const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale
-    ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh)
+    const dx = (w - dw) / 2, dy = portrait ? h * PORTRAIT_CENTRE - dh / 2 : (h - dh) / 2
+    ctx.drawImage(img, dx, dy, dw, dh)
+    if (portrait) { // blend the frame's top and bottom edges into the page grey
+      for (const [y0, y1] of [[dy, dy + dh * 0.08], [dy + dh, dy + dh * 0.82]]) { // short at the top so her hair stays crisp
+        const g = ctx.createLinearGradient(0, y0, 0, y1)
+        g.addColorStop(0, GREY); g.addColorStop(1, GREY + '00')
+        ctx.fillStyle = g; ctx.fillRect(dx, Math.min(y0, y1), dw, Math.abs(y1 - y0))
+      }
+    }
     canvas.dataset.frame = i
   }
-  for (let i = 0; i < FRAMES; i++) {
-    const img = new Image()
-    img.onload = () => { current = -1; draw() }
-    img.src = `frames/f${String(i + 1).padStart(2, '0')}.webp`
-    frames.push(img)
+  for (let i = 0; i < FRAMES; i++) frames.push(new Image())
+  // Fetch the camera-facing frame first so she appears at once, then the rest.
+  for (const i of [Math.round((FRAMES - 1) / 2), ...frames.keys()]) {
+    if (frames[i].src) continue
+    frames[i].onload = () => { current = -1; draw() }
+    frames[i].src = `frames/f${String(i + 1).padStart(2, '0')}.webp`
   }
   let queued = false
   const schedule = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; current = -1; draw() }) } }
