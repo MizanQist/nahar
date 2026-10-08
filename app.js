@@ -21,12 +21,13 @@ const onScroll = () => { const track = hero.offsetHeight - innerHeight; if (trac
 if (isTouch) window.addEventListener('scroll', onScroll, { passive: true })
 else window.addEventListener('pointermove', (e) => { if (scrollY <= innerHeight) scrubTo(e.clientX / innerWidth) })
 // iOS will not paint seeked frames until the element has played once; muted + playsinline makes this allowed without a tap.
-const prime = () => {
-  const start = () => isTouch ? onScroll() : scrubTo(0.5)
-  video.play().then(() => { video.pause(); start() }).catch(start)
-}
-video.addEventListener('loadedmetadata', prime)
-if (video.readyState >= 1) prime()
+const prime = (then) => video.play().then(() => { video.pause(); then() }).catch(then)
+video.addEventListener('loadedmetadata', () => prime(() => isTouch ? onScroll() : scrubTo(0.5)))
+// Download the whole clip first and scrub from memory: streaming it meant every seek into an unbuffered
+// range waited on the network, and a backgrounded tab dropped the stream so seeks stopped landing.
+fetch(video.dataset.src).then((r) => r.blob()).then((b) => { video.src = URL.createObjectURL(b) })
+// Browsers suspend media in hidden tabs; re-prime and re-seek on return.
+document.addEventListener('visibilitychange', () => { if (!document.hidden && video.duration) prime(() => seekTo(targetTime)) })
 
 // ---------- Questionnaire
 const EMAIL = 'info@mizanqist.com'
