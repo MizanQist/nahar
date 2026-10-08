@@ -1,20 +1,32 @@
-// ---------- Hero: pointer x scrubs the clip (left edge = looking left, right edge = looking right)
+// ---------- Hero scrub. Hover devices: cursor x drives the clip (left edge = looking left, right edge = looking right).
+// Touch devices: scrolling through the 200svh hero drives it instead, since there is no cursor to follow.
 const video = document.getElementById('hero')
+const hero = document.querySelector('.hero')
+const isTouch = matchMedia('(hover: none)').matches
+const SEEK_TIMEOUT = 400 // ms; a seek that never reports back must not wedge the scrub
 let targetTime = 0
-let isSeeking = false
-const seekTo = (t) => { isSeeking = true; video.currentTime = t }
+let seekStarted = 0
+const seekTo = (t) => { seekStarted = performance.now(); video.currentTime = t }
+const isSeeking = () => performance.now() - seekStarted < SEEK_TIMEOUT
 video.addEventListener('seeked', () => {
-  isSeeking = false
+  seekStarted = 0
   if (Math.abs(video.currentTime - targetTime) > 0.001) seekTo(targetTime)
 })
-window.addEventListener('pointermove', (e) => {
-  if (!video.duration || scrollY > innerHeight) return
-  targetTime = Math.min(1, Math.max(0, e.clientX / innerWidth)) * video.duration
-  if (!isSeeking && targetTime !== video.currentTime) seekTo(targetTime)
-})
-const faceCamera = () => { targetTime = video.duration / 2; seekTo(targetTime) }
-video.addEventListener('loadedmetadata', faceCamera)
-if (video.readyState >= 1) faceCamera()
+const scrubTo = (fraction) => {
+  if (!video.duration) return
+  targetTime = Math.min(1, Math.max(0, fraction)) * video.duration
+  if (!isSeeking() && targetTime !== video.currentTime) seekTo(targetTime)
+}
+const onScroll = () => { const track = hero.offsetHeight - innerHeight; if (track > 0 && scrollY <= track) scrubTo(scrollY / track) }
+if (isTouch) window.addEventListener('scroll', onScroll, { passive: true })
+else window.addEventListener('pointermove', (e) => { if (scrollY <= innerHeight) scrubTo(e.clientX / innerWidth) })
+// iOS will not paint seeked frames until the element has played once; muted + playsinline makes this allowed without a tap.
+const prime = () => {
+  const start = () => isTouch ? onScroll() : scrubTo(0.5)
+  video.play().then(() => { video.pause(); start() }).catch(start)
+}
+video.addEventListener('loadedmetadata', prime)
+if (video.readyState >= 1) prime()
 
 // ---------- Questionnaire
 const EMAIL = 'info@mizanqist.com'
