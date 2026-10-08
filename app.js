@@ -1,33 +1,71 @@
-// ---------- Hero scrub. Hover devices: cursor x drives the clip (left edge = looking left, right edge = looking right).
-// Touch devices: scrolling through the 200svh hero drives it instead, since there is no cursor to follow.
-const video = document.getElementById('hero')
+// ---------- Hero scrub.
+// Hover devices: cursor x drives the video (left edge = looking left, right edge = looking right).
+// Touch devices: scrolling through the 200svh hero drives a frame sequence drawn to a canvas. Phones get
+// no <video> at all: iOS applies media policies (no painting before play, blob sources, low-power mode)
+// that left the figure blank, and a canvas has none of them.
 const hero = document.querySelector('.hero')
 const isTouch = matchMedia('(hover: none)').matches
-const SEEK_TIMEOUT = 400 // ms; a seek that never reports back must not wedge the scrub
-let targetTime = 0
-let seekStarted = 0
-const seekTo = (t) => { seekStarted = performance.now(); video.currentTime = t }
-const isSeeking = () => performance.now() - seekStarted < SEEK_TIMEOUT
-video.addEventListener('seeked', () => {
-  seekStarted = 0
-  if (Math.abs(video.currentTime - targetTime) > 0.001) seekTo(targetTime)
-})
-const scrubTo = (fraction) => {
-  if (!video.duration) return
-  targetTime = Math.min(1, Math.max(0, fraction)) * video.duration
-  if (!isSeeking() && targetTime !== video.currentTime) seekTo(targetTime)
+const scrollFraction = () => { const track = hero.offsetHeight - innerHeight; return track > 0 ? Math.min(1, Math.max(0, scrollY / track)) : 0 }
+
+if (isTouch) {
+  const FRAMES = 61 // frames/f01.webp … f61.webp, every second frame of the clip
+  const canvas = document.getElementById('frames')
+  const ctx = canvas.getContext('2d')
+  const frames = []
+  let current = -1
+  const draw = () => {
+    const want = Math.round(scrollFraction() * (FRAMES - 1))
+    // Nearest frame that has finished loading, so the figure appears as soon as anything is ready.
+    let i = want
+    while (i >= 0 && !frames[i]?.complete) i--
+    if (i < 0) { i = frames.findIndex((f) => f.complete); if (i < 0) return }
+    const img = frames[i]
+    if (i === current && canvas.dataset.frame) return
+    current = i
+    const dpr = Math.min(2, devicePixelRatio || 1)
+    const w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr)
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h }
+    const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight)
+    const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale
+    ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh)
+    canvas.dataset.frame = i
+  }
+  for (let i = 0; i < FRAMES; i++) {
+    const img = new Image()
+    img.onload = () => { current = -1; draw() }
+    img.src = `frames/f${String(i + 1).padStart(2, '0')}.webp`
+    frames.push(img)
+  }
+  let queued = false
+  const schedule = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; current = -1; draw() }) } }
+  window.addEventListener('scroll', schedule, { passive: true })
+  window.addEventListener('resize', schedule)
+} else {
+  const video = document.getElementById('hero')
+  const SEEK_TIMEOUT = 400 // ms; a seek that never reports back must not wedge the scrub
+  let targetTime = 0
+  let seekStarted = 0
+  const seekTo = (t) => { seekStarted = performance.now(); video.currentTime = t }
+  const isSeeking = () => performance.now() - seekStarted < SEEK_TIMEOUT
+  video.addEventListener('seeked', () => {
+    seekStarted = 0
+    if (Math.abs(video.currentTime - targetTime) > 0.001) seekTo(targetTime)
+  })
+  const scrubTo = (fraction) => {
+    if (!video.duration) return
+    targetTime = Math.min(1, Math.max(0, fraction)) * video.duration
+    if (!isSeeking() && targetTime !== video.currentTime) seekTo(targetTime)
+  }
+  window.addEventListener('pointermove', (e) => { if (scrollY <= innerHeight) scrubTo(e.clientX / innerWidth) })
+  // A muted inline video may play without a gesture; play-then-pause makes browsers paint seeked frames.
+  const prime = (then) => video.play().then(() => { video.pause(); then() }).catch(then)
+  video.addEventListener('loadedmetadata', () => prime(() => scrubTo(0.5)))
+  // Download the whole clip first and scrub from memory: streaming it meant every seek into an unbuffered
+  // range waited on the network, and a backgrounded tab dropped the stream so seeks stopped landing.
+  fetch(video.dataset.src).then((r) => r.blob()).then((b) => { video.src = URL.createObjectURL(b) })
+  // Browsers suspend media in hidden tabs; re-prime and re-seek on return.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && video.duration) prime(() => seekTo(targetTime)) })
 }
-const onScroll = () => { const track = hero.offsetHeight - innerHeight; if (track > 0 && scrollY <= track) scrubTo(scrollY / track) }
-if (isTouch) window.addEventListener('scroll', onScroll, { passive: true })
-else window.addEventListener('pointermove', (e) => { if (scrollY <= innerHeight) scrubTo(e.clientX / innerWidth) })
-// iOS will not paint seeked frames until the element has played once; muted + playsinline makes this allowed without a tap.
-const prime = (then) => video.play().then(() => { video.pause(); then() }).catch(then)
-video.addEventListener('loadedmetadata', () => prime(() => isTouch ? onScroll() : scrubTo(0.5)))
-// Download the whole clip first and scrub from memory: streaming it meant every seek into an unbuffered
-// range waited on the network, and a backgrounded tab dropped the stream so seeks stopped landing.
-fetch(video.dataset.src).then((r) => r.blob()).then((b) => { video.src = URL.createObjectURL(b) })
-// Browsers suspend media in hidden tabs; re-prime and re-seek on return.
-document.addEventListener('visibilitychange', () => { if (!document.hidden && video.duration) prime(() => seekTo(targetTime)) })
 
 // ---------- Questionnaire
 const EMAIL = 'info@mizanqist.com'

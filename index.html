@@ -18,7 +18,9 @@
     button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 
     /* Hero */
-    video { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+    video, canvas { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+    canvas { display: none; background: url(poster.jpg) center / cover no-repeat; }
+    @media (hover: none) { video { display: none; } canvas { display: block; } }
     .hero { position: relative; z-index: 1; height: 100vh; height: 100svh; }
     @media (hover: none) { .hero { height: 200vh; height: 200svh; } } /* scroll track: scrolling through it turns her head */
     .stage { position: sticky; top: 0; height: 100vh; height: 100svh; }
@@ -80,6 +82,7 @@
 </head>
 <body>
   <video id="hero" data-src="hero.mp4" poster="poster.jpg" muted playsinline preload="auto"></video>
+  <canvas id="frames" aria-hidden="true"></canvas>
   <section class="hero">
     <div class="stage">
       <header><a href="#">NAHAR</a></header>
