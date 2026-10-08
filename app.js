@@ -1,87 +1,63 @@
-// ---------- Hero scrub.
-// Hover devices: cursor x drives the video (left edge = looking left, right edge = looking right).
-// Touch devices: a finger dragged across the hero drives a frame sequence drawn to a canvas (same mapping,
-// finger x instead of cursor x). Phones get no <video> at all: iOS applies media policies (no painting
-// before play, blob sources, low-power mode) that left the figure blank, and a canvas has none of them.
+// ---------- Hero scrub: a frame sequence drawn to a full-screen canvas.
+// Hover devices: cursor x picks the frame (left edge = looking left, right edge = looking right), from the
+// 121 full-resolution frames. Touch devices: finger x does the same from 61 lighter frames. No <video>
+// anywhere: iOS media policies left it blank on phones, and the extra H.264 pass made it soft on desktop.
 const hero = document.querySelector('.hero')
 const isTouch = matchMedia('(hover: none)').matches
-
-if (isTouch) {
-  const FRAMES = 61 // frames/f01.webp … f61.webp, every second frame of the clip
-  const PORTRAIT_VIEW = 0.62 // on a portrait screen this fraction of the frame width fills the screen: the figure plus space either side
-  const PORTRAIT_CENTRE = 0.45 // vertical centre of the figure as a fraction of the screen height
-  const GREY = '#b7b3b2' // the page background; the frame's own backdrop is the same grey
-  const canvas = document.getElementById('frames')
-  const ctx = canvas.getContext('2d')
-  const frames = []
-  let fraction = 0.5 // face the camera until a finger moves
-  let current = -1
-  const draw = () => {
-    const want = Math.round(fraction * (FRAMES - 1))
-    // Nearest frame that has finished loading, so the figure appears as soon as anything is ready.
-    let i = want
-    while (i >= 0 && !frames[i]?.complete) i--
-    if (i < 0) { i = frames.findIndex((f) => f.complete); if (i < 0) return }
-    const img = frames[i]
-    if (i === current && canvas.dataset.frame) return
-    current = i
-    const dpr = Math.min(2, devicePixelRatio || 1)
-    const w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr)
-    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h }
-    const portrait = h > w
-    const scale = portrait ? w / (img.naturalWidth * PORTRAIT_VIEW) : Math.max(w / img.naturalWidth, h / img.naturalHeight)
-    const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale
-    const dx = (w - dw) / 2, dy = portrait ? h * PORTRAIT_CENTRE - dh / 2 : (h - dh) / 2
-    ctx.drawImage(img, dx, dy, dw, dh)
-    if (portrait) { // blend the frame's top and bottom edges into the page grey
-      for (const [y0, y1] of [[dy, dy + dh * 0.08], [dy + dh, dy + dh * 0.82]]) { // short at the top so her hair stays crisp
-        const g = ctx.createLinearGradient(0, y0, 0, y1)
-        g.addColorStop(0, GREY); g.addColorStop(1, GREY + '00')
-        ctx.fillStyle = g; ctx.fillRect(dx, Math.min(y0, y1), dw, Math.abs(y1 - y0))
-      }
+const SET = isTouch ? { dir: 'frames', count: 61, pad: 2 } : { dir: 'frames-hd', count: 121, pad: 3 }
+const PORTRAIT_VIEW = 0.62 // on a portrait screen this fraction of the frame width fills the screen: the figure plus space either side
+const PORTRAIT_CENTRE = 0.45 // vertical centre of the figure as a fraction of the screen height
+const GREY = '#b7b3b2' // the page background; the frame's own backdrop is the same grey
+const canvas = document.getElementById('frames')
+const ctx = canvas.getContext('2d')
+ctx.imageSmoothingQuality = 'high'
+const frames = []
+let fraction = 0.5 // face the camera until the cursor or a finger moves
+let current = -1
+const draw = () => {
+  const want = Math.round(fraction * (SET.count - 1))
+  // Nearest frame that has finished loading, so the figure appears as soon as anything is ready.
+  let i = want
+  while (i >= 0 && !frames[i]?.complete) i--
+  if (i < 0) { i = frames.findIndex((f) => f.complete); if (i < 0) return }
+  const img = frames[i]
+  if (i === current && canvas.dataset.frame) return
+  current = i
+  const dpr = Math.min(2, devicePixelRatio || 1)
+  const w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr)
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; ctx.imageSmoothingQuality = 'high' }
+  const portrait = h > w
+  const scale = portrait ? w / (img.naturalWidth * PORTRAIT_VIEW) : Math.max(w / img.naturalWidth, h / img.naturalHeight)
+  const dw = img.naturalWidth * scale, dh = img.naturalHeight * scale
+  const dx = (w - dw) / 2, dy = portrait ? h * PORTRAIT_CENTRE - dh / 2 : (h - dh) / 2
+  ctx.drawImage(img, dx, dy, dw, dh)
+  if (portrait) { // blend the frame's top and bottom edges into the page grey
+    for (const [y0, y1] of [[dy, dy + dh * 0.08], [dy + dh, dy + dh * 0.82]]) { // short at the top so her hair stays crisp
+      const g = ctx.createLinearGradient(0, y0, 0, y1)
+      g.addColorStop(0, GREY); g.addColorStop(1, GREY + '00')
+      ctx.fillStyle = g; ctx.fillRect(dx, Math.min(y0, y1), dw, Math.abs(y1 - y0))
     }
-    canvas.dataset.frame = i
   }
-  for (let i = 0; i < FRAMES; i++) frames.push(new Image())
-  // Fetch the camera-facing frame first so she appears at once, then the rest.
-  for (const i of [Math.round((FRAMES - 1) / 2), ...frames.keys()]) {
-    if (frames[i].src) continue
-    frames[i].onload = () => { current = -1; draw() }
-    frames[i].src = `frames/f${String(i + 1).padStart(2, '0')}.webp`
-  }
-  let queued = false
-  const schedule = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; current = -1; draw() }) } }
-  // touch-action: pan-y on the hero leaves vertical drags to the page scroll and hands sideways ones to us.
-  const onTouch = (e) => { fraction = Math.min(1, Math.max(0, e.touches[0].clientX / innerWidth)); schedule() }
-  hero.addEventListener('touchstart', onTouch, { passive: true })
-  hero.addEventListener('touchmove', onTouch, { passive: true })
-  window.addEventListener('resize', schedule)
-} else {
-  const video = document.getElementById('hero')
-  const SEEK_TIMEOUT = 400 // ms; a seek that never reports back must not wedge the scrub
-  let targetTime = 0
-  let seekStarted = 0
-  const seekTo = (t) => { seekStarted = performance.now(); video.currentTime = t }
-  const isSeeking = () => performance.now() - seekStarted < SEEK_TIMEOUT
-  video.addEventListener('seeked', () => {
-    seekStarted = 0
-    if (Math.abs(video.currentTime - targetTime) > 0.001) seekTo(targetTime)
-  })
-  const scrubTo = (fraction) => {
-    if (!video.duration) return
-    targetTime = Math.min(1, Math.max(0, fraction)) * video.duration
-    if (!isSeeking() && targetTime !== video.currentTime) seekTo(targetTime)
-  }
-  window.addEventListener('pointermove', (e) => { if (scrollY <= innerHeight) scrubTo(e.clientX / innerWidth) })
-  // A muted inline video may play without a gesture; play-then-pause makes browsers paint seeked frames.
-  const prime = (then) => video.play().then(() => { video.pause(); then() }).catch(then)
-  video.addEventListener('loadedmetadata', () => prime(() => scrubTo(0.5)))
-  // Download the whole clip first and scrub from memory: streaming it meant every seek into an unbuffered
-  // range waited on the network, and a backgrounded tab dropped the stream so seeks stopped landing.
-  fetch(video.dataset.src).then((r) => r.blob()).then((b) => { video.src = URL.createObjectURL(b) })
-  // Browsers suspend media in hidden tabs; re-prime and re-seek on return.
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && video.duration) prime(() => seekTo(targetTime)) })
+  canvas.dataset.frame = i
 }
+for (let i = 0; i < SET.count; i++) frames.push(new Image())
+// Fetch the camera-facing frame first so she appears at once, then the rest.
+for (const i of [Math.round((SET.count - 1) / 2), ...frames.keys()]) {
+  if (frames[i].src) continue
+  frames[i].onload = () => { current = -1; draw() }
+  frames[i].src = `${SET.dir}/f${String(i + 1).padStart(SET.pad, '0')}.webp`
+}
+let queued = false
+const schedule = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; current = -1; draw() }) } }
+const setFraction = (x) => { fraction = Math.min(1, Math.max(0, x / innerWidth)); schedule() }
+if (isTouch) {
+  // touch-action: pan-y on the hero leaves vertical drags to the page scroll and hands sideways ones to us.
+  hero.addEventListener('touchstart', (e) => setFraction(e.touches[0].clientX), { passive: true })
+  hero.addEventListener('touchmove', (e) => setFraction(e.touches[0].clientX), { passive: true })
+} else {
+  window.addEventListener('pointermove', (e) => { if (scrollY <= innerHeight) setFraction(e.clientX) })
+}
+window.addEventListener('resize', schedule)
 
 // ---------- Questionnaire
 const EMAIL = 'info@mizanqist.com'

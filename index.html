@@ -18,9 +18,7 @@
     button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 
     /* Hero */
-    video, canvas { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
-    canvas { display: none; background: var(--grey); }
-    @media (hover: none) { video { display: none; } canvas { display: block; } }
+    canvas { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; background: var(--grey); }
     .hero { position: relative; z-index: 1; height: 100vh; height: 100svh; touch-action: pan-y; }
     .touch-only { display: none; }
     @media (hover: none) { .touch-only { display: inline; } }
@@ -32,7 +30,7 @@
     @keyframes bob { 50% { transform: translateY(5px); } }
     @media (min-width: 640px) { .stage header { padding: 24px 32px; } .stage header a { font-size: 36px; } }
 
-    /* Questionnaire panel slides over the fixed video */
+    /* Questionnaire panel slides over the fixed canvas */
     main { position: relative; z-index: 2; min-height: 100vh; min-height: 100svh; background: var(--cream); border-radius: 28px 28px 0 0; box-shadow: 0 -12px 40px rgba(0,0,0,0.18); padding: 0 20px calc(64px + env(safe-area-inset-bottom)); }
     .bar { position: sticky; top: 0; z-index: 1; height: 3px; margin: 0 -20px; }
     .bar i { display: block; height: 100%; width: 0; background: var(--mocha); transition: width .5s cubic-bezier(.2,.7,.2,1); }
@@ -82,7 +80,6 @@
   </style>
 </head>
 <body>
-  <video id="hero" data-src="hero.mp4" poster="poster.jpg" muted playsinline preload="auto"></video>
   <canvas id="frames" aria-hidden="true"></canvas>
   <section class="hero">
     <div class="stage">
